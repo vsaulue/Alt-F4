@@ -114,7 +114,7 @@ To find a good vertical order, let's start from a simple idea. For each pair (`A
 ![Example of crossing scores](crossings-score-example.png)
 (here placing `A` above `B` saves 2 crossings)
 
-Sadly the above trick may result in contradictions: `A` must be placed above `B`, `B` must be placed above `C`, and `C` must be placed above `A`. To get a proper order, Dana has to sacrifice some of the generated constraints, but in a way that adds as few crossings as possible.
+Sadly the above trick may result in *contradictions*: `A` must be placed above `B`, `B` must be placed above `C`, and `C` must be placed above `A`. To get a proper order, Dana has to sacrifice some of the generated constraints, but in a way that adds as few crossings as possible.
 
 ![Example of crossing score contradictions](crossings-score-contradiction.png)
 (`C` over `A` saves 1 crossing, `A` over `B` saves 2 crossings, `B` over `C` saves 1 crossing)
@@ -123,12 +123,39 @@ And now is the perfect time to start randomly talking about sports. Let's rephra
 
 The fundamental problem is the same. But luckily the sports version is as old as round-robin tournaments. And the good thing about old mainstream problems like that: there are a lot of smart people who have done research on it !
 
-A generic way to solve the issue is to use graph theory, where our sport problem is equivalent to the [Minimum feedback arc set](https://en.wikipedia.org/wiki/Feedback_arc_set) problem. The most relevant things to know about this problem:
+A generic way to solve the issue is to use [graph theory](https://en.wikipedia.org/wiki/Graph_(discrete_mathematics)). First, let's start with what a *directed graph* is, in the "graph theory" sense of the term. There's the formal definition with sets, subsets, cartesian products... And there's the kindergarten drawing one: a *directed graph* is a bunch of labeled circles (called vertices), with some arrows drawn between then (called edges). One step further: a *weighted directed graph* is the same thing, with a number on each arrow. This mathematical object can be used to represent many things, like transport networks: Factorio's train pathfinder works on weighted directed graphs ! For Dana's problem, the graph's vertices represents the horizontal lines of the channel router, and "`A` over `B` saves N crossings" is simply drawn as an arrow from `A` to `B` of weight N.
 
-* it's a [NP-hard](https://en.wikipedia.org/wiki/NP-hardness) optimisation problem (in layman's terms: finding an optimal solution can be **ridiculously** time consuming even with just a few dozen of players)
-* there is a nice pile of research articles proposing *heuristics* (in layman's terms: fast algorithms giving a "good enough" solution)
+![Example of weighted graph](weighted-graph-example.png)
+(`A` over `B` saves 2 crossings, `B` over `C` saves 1 crossing, `A` over `D` doesn't change anything, ...)
 
-Dana uses the heuristic from [Eades, P., Lin, X. and Smyth, W.F. (1993)](https://researchrepository.murdoch.edu.au/id/eprint/27510/1/effective_heuristic.pdf), with trivial modifications for weighted graphs. This is an extremely fast & hopefully "not too bad" algorithm to compute a partial order (these full Pyanodon graphs have to come out before the end of time, after all). It's enough to get a much more satisfying result on the last crafting graph:
+Here are the last few boring definitions needed for later. There's a *path* from `A` to `B` if by following arrows, one can go from `A` to `B` in the graph. `A` and `B` are part of a *cycle* if there's both a path from `A` to `B`, and a path from `B` to `A`. A graph is *acyclic* when it does not contain any cycle. In the previous graph: there's a path from `B` to `D` (passing through `C`), there's no path from `D` to `A`, and (`A`,`B`,`C`) form a cycle.
+
+In graph theory, Dana's problem (or the sport variant) is equivalent to the [Minimum feedback arc set](https://en.wikipedia.org/wiki/Feedback_arc_set) problem. A *feedback arc set* is a set of edges which can be removed to make the graph acyclic. This set is *minimum* when its cost (the sum of the removed edges' weight) is the lowest possible. In the previous graph there are 2 optimal solutions of cost 1, each removing a single edge: `C -> A` or `B -> C`.
+
+The bad news: it's a [NP-hard](https://en.wikipedia.org/wiki/NP-hardness) optimisation problem. In layman's terms: finding the best solution can be **ridiculously** time consuming even with just a few dozen of vertices. The good news: there is a nice pile of research articles proposing *heuristics*. Those algorithms computes valid feedback arc sets that are not always optimal, but with a "good enough" cost in a "good enough" time. Various heuristics exists depending on how much computation time one is willing to pay to have stronger guarantees of optimality, or can be tailored to specific types of graphs.
+
+Dana uses the heuristic from [Eades, P., Lin, X. and Smyth, W.F. (1993)](https://researchrepository.murdoch.edu.au/id/eprint/27510/1/effective_heuristic.pdf), with trivial modifications for weighted graphs. This is an extremely fast & hopefully "not too bad" general algorithm to compute a feedback arc set (these full Pyanodon graphs have to come out before the end of time, after all). If research articles are not your thing, here's an simplified illustrated explanation.
+
+A common approach to many feedback arc set algorithm is to deduce the edge set from a full ranking of the vertices. An edge from `A` to `B` will be kept in the graph only if `rank(A) < rank(B)`. This is not strictly equivalent: some valid feedback arc sets can't be desbribed from a vertex ordering. However the most cost effective ones can always be deduced from such an order.
+
+![Example of FAS from order](example-order-fas.png)
+(Order: C,D,A,B. Feedback edge in red)
+
+The full order is computed by repeatedly selecting a vertex from the graph, inserting it to the order, and removing it from the graph. The order is built from both ends: at each step, the vertex is either placed right after the "winner list", or right before the "loser list".
+
+![Order building example](heuristic-list-building.png)
+(Green: current winner list. Blue: current loser list. Red: the 2 places where the next vertex can be inserted)
+
+The rules to select and order a vertex:
+* 1) if a vertex has no inbound arrows, place it right after the winner list.
+* 2) if a vertex has no outbound arrows, place it right before the loser list.
+* 3) select the vertex with the highest delta, and place it right after the winner list. The delta of a vertex is `sum(weight of outbound edges) - sum(weight of inbound edges)`
+
+Here's a concrete example:
+
+** TODO: inline the slide show in `heuristic-slides/` (can be displayed in Photo viewer in the meantime) **
+
+The revised router gives a much more satisfying result on the last crafting graph:
 
 ![Dana tuned channel router](improved-router.png)
 (same graph as the end of the PCB section, with the improved router)
